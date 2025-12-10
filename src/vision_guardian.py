@@ -29,7 +29,7 @@ def run_vision_system():
     
     # --- TRACKING VARIABLES ---
     prev_torso_pos = None 
-    ACTIVITY_THRESHOLD = 0.06 # Increased slightly to differentiate from falls
+    ACTIVITY_THRESHOLD = 0.06 
     distress_frame_count = 0 
     MAR_THRESHOLD = 0.05 
     
@@ -53,20 +53,17 @@ def run_vision_system():
         tube_alert = False
         agitation_alert = False
         distress_alert = False
-        fall_alert = False  # NEW: Fall Flag
+        fall_alert = False  
         face_box = None
         movement = 0
 
         # --- DRAW SAFE ZONE (BED BOUNDARIES) ---
-        # Define the center 60% of screen as "Safe Bed"
         safe_x_min, safe_x_max = int(w * 0.2), int(w * 0.8)
-        safe_y_max = int(h * 0.85) # Bottom boundary
-        
-        # Draw the boundary lines (Yellow dashed style simulation)
+        safe_y_max = int(h * 0.85) 
         cv2.rectangle(frame, (safe_x_min, 0), (safe_x_max, safe_y_max), (0, 255, 255), 1)
         cv2.putText(frame, "SAFE BED ZONE", (safe_x_min + 10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
 
-        # --- A. TUBE PROTECTION (Pillar 1) ---
+        # --- A. TUBE PROTECTION ---
         if face_results.detections:
             for detection in face_results.detections:
                 bboxC = detection.location_data.relative_bounding_box
@@ -75,6 +72,8 @@ def run_vision_system():
                 pad = 50
                 face_box = [max(0, x_min - pad), max(0, y_min - pad), 
                             min(w, x_min + width + pad), min(h, y_min + height + pad)]
+                
+                # Draw Box (Red)
                 cv2.rectangle(frame, (face_box[0], face_box[1]), (face_box[2], face_box[3]), (0, 0, 255), 2)
                 cv2.putText(frame, "CRITICAL ZONE", (face_box[0], face_box[1]-10), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
@@ -88,11 +87,9 @@ def run_vision_system():
                 if face_box[0] < ix < face_box[2] and face_box[1] < iy < face_box[3]:
                     tube_alert = True
         
-        # --- B. AGITATION & FALL DETECTOR (Pillar 2 & 4) ---
+        # --- B. AGITATION & FALL DETECTOR ---
         if pose_results.pose_landmarks:
             landmarks = pose_results.pose_landmarks.landmark
-            
-            # Agitation Logic
             shoulder_x = (landmarks[11].x + landmarks[12].x) / 2
             shoulder_y = (landmarks[11].y + landmarks[12].y) / 2
             hip_x = (landmarks[23].x + landmarks[24].x) / 2
@@ -104,13 +101,8 @@ def run_vision_system():
                 if movement > ACTIVITY_THRESHOLD: agitation_alert = True
             prev_torso_pos = current_torso_pos
 
-            # --- NEW: FALL / BED EXIT LOGIC ---
-            # Check if Hips are outside the Safe Zone
-            # We use pixel coordinates for check
             hip_pixel_x = int(hip_x * w)
             hip_pixel_y = int(hip_y * h)
-
-            # Draw Hips Center
             cv2.circle(frame, (hip_pixel_x, hip_pixel_y), 8, (255, 0, 255), -1)
 
             if hip_pixel_x < safe_x_min or hip_pixel_x > safe_x_max or hip_pixel_y > safe_y_max:
@@ -119,7 +111,7 @@ def run_vision_system():
         cv2.putText(frame, f"Activity: {movement:.3f}", (w - 200, 30), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
 
-        # --- C. DISTRESS DETECTOR (Pillar 3) ---
+        # --- C. DISTRESS DETECTOR ---
         if mesh_results.multi_face_landmarks:
             landmarks = mesh_results.multi_face_landmarks[0].landmark
             mar = calculate_mar(landmarks) * 100 
@@ -130,24 +122,44 @@ def run_vision_system():
             else:
                 distress_frame_count = max(0, distress_frame_count - 1) 
 
-        # --- D. FINAL ALERT DISPLAY ---
+        # --- ALERT LOGIC ---
         alert_text = ""
         alert_color = (0, 0, 0)
+        any_danger = False # Flag to check if we should un-blur
         
         if tube_alert:
-            alert_text = "🚨 CRITICAL: TUBE INTERFERENCE!"
+            alert_text = "CRITICAL: TUBE INTERFERENCE!"
             alert_color = (0, 0, 255) # Red
+            any_danger = True
             winsound.Beep(2500, 100)
-        elif fall_alert: # NEW ALERT PRIORITY
-            alert_text = "🛌 ALERT: BED EXIT ATTEMPT!"
+        elif fall_alert:
+            alert_text = "[BED EXIT ATTEMPT]" # Removed Emoji
             alert_color = (0, 0, 139) # Dark Red
+            any_danger = True
             winsound.Beep(1500, 200)
         elif agitation_alert:
-            alert_text = "⚠️ WARNING: HIGH AGITATION!"
+            alert_text = "WARNING: HIGH AGITATION!"
             alert_color = (0, 165, 255) # Orange
+            any_danger = True
         elif distress_alert:
-            alert_text = "😭 NOTICE: SILENT DISTRESS!"
+            alert_text = "NOTICE: SILENT DISTRESS!"
             alert_color = (0, 255, 255) # Yellow/Cyan
+            any_danger = True
+
+        # --- PRIVACY BLUR (NEW) ---
+        # If there is NO danger, blur the face for privacy
+        if not any_danger and face_box:
+            # Extract the face region (ROI)
+            roi = frame[face_box[1]:face_box[3], face_box[0]:face_box[2]]
+            if roi.size > 0:
+                # Apply Gaussian Blur
+                roi = cv2.GaussianBlur(roi, (51, 51), 30)
+                # Put the blurred face back into the frame
+                frame[face_box[1]:face_box[3], face_box[0]:face_box[2]] = roi
+                
+                # Label it
+                cv2.putText(frame, "PRIVACY MODE ON", (face_box[0], face_box[1]-40), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
         if alert_text:
              cv2.putText(frame, alert_text, (50, 50), 
