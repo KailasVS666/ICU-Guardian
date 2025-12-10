@@ -6,16 +6,13 @@ import time
 
 def calculate_mar(landmarks):
     # Landmarks for inner lip (MediaPipe Face Mesh)
-    # 78: inner top lip center, 308: inner bottom lip center
     p1 = landmarks[78] 
     p2 = landmarks[308]
-    
-    # Vertical distance
     dist = np.linalg.norm(np.array([p1.x, p1.y]) - np.array([p2.x, p2.y]))
     return dist
 
 def run_vision_system():
-    # 1. Setup MediaPipe for Hand, Face, and Pose
+    # Setup MediaPipe
     mp_hands = mp.solutions.hands
     mp_face_detection = mp.solutions.face_detection
     mp_pose = mp.solutions.pose 
@@ -32,9 +29,9 @@ def run_vision_system():
     
     # --- TRACKING VARIABLES ---
     prev_torso_pos = None 
-    ACTIVITY_THRESHOLD = 0.05
+    ACTIVITY_THRESHOLD = 0.06 # Increased slightly to differentiate from falls
     distress_frame_count = 0 
-    MAR_THRESHOLD = 0.04 
+    MAR_THRESHOLD = 0.05 
     
     print("📷 ICU Vision Guardian Active... Press 'q' to quit.")
 
@@ -56,8 +53,18 @@ def run_vision_system():
         tube_alert = False
         agitation_alert = False
         distress_alert = False
+        fall_alert = False  # NEW: Fall Flag
         face_box = None
-        movement = 0  # <--- FIX: Initialized here to prevent UnboundLocalError
+        movement = 0
+
+        # --- DRAW SAFE ZONE (BED BOUNDARIES) ---
+        # Define the center 60% of screen as "Safe Bed"
+        safe_x_min, safe_x_max = int(w * 0.2), int(w * 0.8)
+        safe_y_max = int(h * 0.85) # Bottom boundary
+        
+        # Draw the boundary lines (Yellow dashed style simulation)
+        cv2.rectangle(frame, (safe_x_min, 0), (safe_x_max, safe_y_max), (0, 255, 255), 1)
+        cv2.putText(frame, "SAFE BED ZONE", (safe_x_min + 10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
 
         # --- A. TUBE PROTECTION (Pillar 1) ---
         if face_results.detections:
@@ -78,13 +85,14 @@ def run_vision_system():
                 mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
                 index_finger = hand_landmarks.landmark[8] 
                 ix, iy = int(index_finger.x * w), int(index_finger.y * h)
-                
                 if face_box[0] < ix < face_box[2] and face_box[1] < iy < face_box[3]:
                     tube_alert = True
         
-        # --- B. AGITATION DETECTOR (Pillar 2) ---
+        # --- B. AGITATION & FALL DETECTOR (Pillar 2 & 4) ---
         if pose_results.pose_landmarks:
             landmarks = pose_results.pose_landmarks.landmark
+            
+            # Agitation Logic
             shoulder_x = (landmarks[11].x + landmarks[12].x) / 2
             shoulder_y = (landmarks[11].y + landmarks[12].y) / 2
             hip_x = (landmarks[23].x + landmarks[24].x) / 2
@@ -94,10 +102,20 @@ def run_vision_system():
             if prev_torso_pos is not None:
                 movement = np.linalg.norm(current_torso_pos - prev_torso_pos)
                 if movement > ACTIVITY_THRESHOLD: agitation_alert = True
-
             prev_torso_pos = current_torso_pos
-            
-        # Display Activity Score (Safe to draw now because movement is initialized to 0)
+
+            # --- NEW: FALL / BED EXIT LOGIC ---
+            # Check if Hips are outside the Safe Zone
+            # We use pixel coordinates for check
+            hip_pixel_x = int(hip_x * w)
+            hip_pixel_y = int(hip_y * h)
+
+            # Draw Hips Center
+            cv2.circle(frame, (hip_pixel_x, hip_pixel_y), 8, (255, 0, 255), -1)
+
+            if hip_pixel_x < safe_x_min or hip_pixel_x > safe_x_max or hip_pixel_y > safe_y_max:
+                fall_alert = True
+
         cv2.putText(frame, f"Activity: {movement:.3f}", (w - 200, 30), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
 
@@ -106,11 +124,9 @@ def run_vision_system():
             landmarks = mesh_results.multi_face_landmarks[0].landmark
             mar = calculate_mar(landmarks) * 100 
             cv2.putText(frame, f"MAR: {mar:.2f}", (w - 200, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-
             if mar > MAR_THRESHOLD * 100:
                 distress_frame_count += 1
-                if distress_frame_count > 10: 
-                    distress_alert = True
+                if distress_frame_count > 10: distress_alert = True
             else:
                 distress_frame_count = max(0, distress_frame_count - 1) 
 
@@ -122,6 +138,10 @@ def run_vision_system():
             alert_text = "🚨 CRITICAL: TUBE INTERFERENCE!"
             alert_color = (0, 0, 255) # Red
             winsound.Beep(2500, 100)
+        elif fall_alert: # NEW ALERT PRIORITY
+            alert_text = "🛌 ALERT: BED EXIT ATTEMPT!"
+            alert_color = (0, 0, 139) # Dark Red
+            winsound.Beep(1500, 200)
         elif agitation_alert:
             alert_text = "⚠️ WARNING: HIGH AGITATION!"
             alert_color = (0, 165, 255) # Orange
@@ -134,9 +154,7 @@ def run_vision_system():
                         cv2.FONT_HERSHEY_SIMPLEX, 1, alert_color, 3)
             
         cv2.imshow('ICU Guardian - Computer Vision', frame)
-
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        if cv2.waitKey(1) & 0xFF == ord('q'): break
 
     cap.release()
     cv2.destroyAllWindows()
