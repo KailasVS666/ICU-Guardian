@@ -1,0 +1,85 @@
+# ICU Guardian Vision System Configuration
+# All detection thresholds and parameters
+
+# Camera Settings
+camera:
+  index: 0  # Camera device index (overridden by ICU_CAMERA_INDEX env var)
+  width: 1280
+  height: 720
+  fps_limit: 20  # Target FPS to prevent CPU overload
+
+# Safe Zone (Bed Boundaries)
+safe_zone:
+  x_min_ratio: 0.2  # Left boundary as ratio of frame width
+  x_max_ratio: 0.8  # Right boundary as ratio of frame width
+  y_max_ratio: 0.85  # Bottom boundary as ratio of frame height
+
+# Self-Harm Detection (Tube Interference)
+self_harm:
+  face_detection_confidence: 0.7
+  hand_detection_confidence: 0.7
+  alert_threshold_seconds: 2  # Persistent danger duration before alert
+  face_padding: 50  # Pixels to expand face bounding box
+
+# Fall Detection
+fall:
+  alert_threshold_seconds: 1
+  hip_tracking_confidence: 0.6
+
+# Agitation Detection
+agitation:
+  motion_threshold: 0.08  # Average motion to trigger agitation
+  persistence_frames: 30  # Frames of sustained motion before alert
+  alert_threshold_seconds: 5
+  alert_cooldown_seconds: 60  # Minimum time between alerts
+  motion_history_size: 10  # Number of frames to track for smoothing
+  tracking_points:  # Body landmarks to track (MediaPipe indices)
+    - 11  # Left shoulder
+    - 12  # Right shoulder
+    - 13  # Left elbow
+    - 14  # Right elbow
+    - 15  # Left wrist
+    - 16  # Right wrist
+
+# Distress Detection
+distress:
+  mar_threshold: 0.05  # Mouth Aspect Ratio threshold
+  persistence_frames: 10  # Frames before triggering alert
+  alert_threshold_seconds: 3
+  deepface_enabled: false  # Enable/disable DeepFace emotion analysis
+  deepface_interval_frames: 15  # Run DeepFace every N frames
+
+# MediaPipe Model Settings
+mediapipe:
+  pose:
+    model_complexity: 1  # 0=lite, 1=full, 2=heavy
+    min_detection_confidence: 0.6
+    min_tracking_confidence: 0.6
+    smooth_landmarks: true
+  
+  hands:
+    max_num_hands: 2
+    min_detection_confidence: 0.7
+    min_tracking_confidence: 0.7
+  
+  face_detection:
+    min_detection_confidence: 0.7
+  
+  face_mesh:
+    max_num_faces: 1
+    min_detection_confidence: 0.6
+    min_tracking_confidence: 0.6
+
+# Privacy Settings
+privacy:
+  blur_face_when_safe: true  # Blur face when no danger detected
+  blur_kernel_size: 51  # Gaussian blur kernel size
+  show_privacy_label: true
+
+# Display Settings
+display:
+  show_ui: true  # Set to false for headless mode
+  window_name: "ICU Guardian - Computer Vision"
+  show_safe_zone: true
+  show_motion_metrics: true
+  show_fps: true

@@ -1,0 +1,15 @@
+numpy
+pandas
+scikit-learn
+matplotlib
+opencv-python
+mediapipe
+streamlit
+deepface
+tf-keras
+requests
+psutil
+python-dotenv
+fpdf2
+pyyaml
+lightgbm
