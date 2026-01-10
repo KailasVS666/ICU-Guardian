@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-01-10T11:58:27.564880",
+  "last_updated": "2026-01-10T12:23:41.301647",
   "pillars": {
     "distress": {
       "active": false,
@@ -10,12 +10,12 @@
       "last_alert": null
     },
     "self_harm": {
-      "active": false,
-      "elapsed_seconds": 0,
-      "count": 0,
+      "active": true,
+      "elapsed_seconds": 55.26,
+      "count": 2,
       "severity": "critical",
-      "confidence": 0.0,
-      "last_alert": null
+      "confidence": 1.0,
+      "last_alert": "2026-01-10T12:22:46.028777"
     },
     "agitation": {
       "active": false,
@@ -27,11 +27,11 @@
     },
     "fall": {
       "active": true,
-      "elapsed_seconds": 18.97,
-      "count": 1,
+      "elapsed_seconds": 6.43,
+      "count": 4,
       "severity": "critical",
       "confidence": 1.0,
-      "last_alert": "2026-01-10T11:58:08.095149"
+      "last_alert": "2026-01-10T12:23:34.860954"
     }
   }
 }
