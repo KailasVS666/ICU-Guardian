@@ -25,11 +25,40 @@ def safe_beep(freq=1000, duration=150):
         pass
 
 def calculate_mar(landmarks):
-    # Landmarks for inner lip (MediaPipe Face Mesh)
-    p1 = landmarks[78] 
-    p2 = landmarks[308]
-    dist = np.linalg.norm(np.array([p1.x, p1.y]) - np.array([p2.x, p2.y]))
-    return dist
+    """
+    Calculate Mouth Aspect Ratio (MAR) from MediaPipe Face Mesh landmarks.
+    
+    High MAR = Mouth open (distress/agitation indicator)
+    Low MAR = Mouth closed (normal state)
+    
+    MediaPipe Face Mesh mouth landmarks:
+    - Top lip: 13, 14
+    - Bottom lip: 17, 18
+    - Mouth corners: 78, 308
+    """
+    # Get mouth landmarks
+    top_lip_1 = landmarks[13]      # Top lip center-left
+    top_lip_2 = landmarks[14]      # Top lip center-right
+    bottom_lip_1 = landmarks[17]   # Bottom lip center-left
+    bottom_lip_2 = landmarks[18]   # Bottom lip center-right
+    left_corner = landmarks[78]    # Left mouth corner
+    right_corner = landmarks[308]  # Right mouth corner
+    
+    # Calculate mouth height (vertical)
+    mouth_height = np.linalg.norm(
+        np.array([top_lip_1.x, top_lip_1.y]) - 
+        np.array([bottom_lip_1.x, bottom_lip_1.y])
+    )
+    
+    # Calculate mouth width (horizontal)
+    mouth_width = np.linalg.norm(
+        np.array([left_corner.x, left_corner.y]) - 
+        np.array([right_corner.x, right_corner.y])
+    )
+    
+    # Calculate MAR (aspect ratio)
+    mar = mouth_height / (mouth_width + 1e-6)  # Add small epsilon to prevent division by zero
+    return mar
 
 def run_vision_system():
     print("🔄 Initializing ICU Guardian Vision System...")
@@ -83,7 +112,8 @@ def run_vision_system():
     PERSISTENCE_FRAMES = 30  # Frames needed to confirm agitation
     distress_frame_count = 0 
     agitation_frame_count = 0  # Counter for agitation frames
-    MAR_THRESHOLD = 0.05
+    MAR_THRESHOLD = 0.9  # Triggers only on WIDE mouth opening (extreme distress/screaming)
+    MAR_PERSISTENCE_FRAMES = 3  # Only need 3 frames (~1 second at 3 FPS) to confirm distress (was 10 = too strict)
     deepface_frame_counter = 0  # Counter for DeepFace (every 15 frames)
     detected_emotion = "None"
     emotion_confidence = 0.0
@@ -247,11 +277,19 @@ def run_vision_system():
         # --- C. DISTRESS DETECTOR ---
         if mesh_results.multi_face_landmarks:
             landmarks = mesh_results.multi_face_landmarks[0].landmark
-            mar = calculate_mar(landmarks) * 100 
-            cv2.putText(frame, f"MAR: {mar:.2f}", (w - 200, 115), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-            if mar > MAR_THRESHOLD * 100:
+            mar = calculate_mar(landmarks)  # Now returns proper aspect ratio
+            
+            # Display MAR with color coding
+            mar_color = (0, 255, 255) if mar < MAR_THRESHOLD else (0, 0, 255)  # Yellow/Cyan when normal, Red when high
+            cv2.putText(frame, f"MAR: {mar:.3f}", (w - 200, 115), cv2.FONT_HERSHEY_SIMPLEX, 0.6, mar_color, 2)
+            
+            if mar > MAR_THRESHOLD:  # Direct comparison (no multiplication needed)
                 distress_frame_count += 1
-                if distress_frame_count > 10: distress_alert = True
+                # Display debug counter
+                cv2.putText(frame, f"Distress Count: {distress_frame_count}", (w - 200, 145), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 165, 255), 2)
+                if distress_frame_count >= MAR_PERSISTENCE_FRAMES:  # Much lower threshold for faster detection
+                    distress_alert = True
             else:
                 distress_frame_count = max(0, distress_frame_count - 1)
         

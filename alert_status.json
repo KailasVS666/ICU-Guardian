@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-01-10T11:33:27.392019",
+  "last_updated": "2026-01-10T11:58:27.564880",
   "pillars": {
     "distress": {
       "active": false,
@@ -27,11 +27,11 @@
     },
     "fall": {
       "active": true,
-      "elapsed_seconds": 10.78,
+      "elapsed_seconds": 18.97,
       "count": 1,
       "severity": "critical",
       "confidence": 1.0,
-      "last_alert": "2026-01-10T11:33:15.980610"
+      "last_alert": "2026-01-10T11:58:08.095149"
     }
   }
 }
