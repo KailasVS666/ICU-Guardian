@@ -325,7 +325,7 @@ function HeroSection() {
             variants={fadeInUp}
             className="max-w-2xl mx-auto text-lg md:text-xl text-foreground-muted leading-relaxed"
           >
-            Predict delirium <span className="text-accent font-medium">2 hours early</span>. 
+            Predict delirium <span className="text-accent font-medium">2 mins early</span>. 
             Detect self-extubation <span className="text-accent font-medium">instantly</span>. 
             Powered by privacy-first Computer Vision.
           </motion.p>
