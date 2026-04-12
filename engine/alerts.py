@@ -10,7 +10,13 @@ from enum import Enum
 from typing import Optional
 
 # Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file
+# Load environment variables from .env file
+load_dotenv(override=True)
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+print("DEBUG: Loaded env vars. Token present:", bool(os.getenv("TELEGRAM_BOT_TOKEN")))
+print("DEBUG: User Chat ID present:", bool(os.getenv("TELEGRAM_CHAT_ID")))
 
 # Path to shared status file
 STATUS_FILE = Path(__file__).parent.parent / "alert_status.json"
@@ -211,16 +217,32 @@ def send_to_telegram(message):
             "parse_mode": "HTML"
         }
         
-        response = requests.post(TELEGRAM_API_URL, json=payload, timeout=5)
+        # Check for proxy in env
+        proxies = None
+        if os.getenv("HTTPS_PROXY"):
+            proxies = {"https": os.getenv("HTTPS_PROXY")}
+
+        # Disable SSL verification to bypass potential proxy/firewall SSL inspection issues
+        response = requests.post(
+            TELEGRAM_API_URL, 
+            json=payload, 
+            timeout=5, 
+            verify=False,
+            proxies=proxies
+        )
         
         if response.status_code == 200:
             print(f"✅ Telegram Alert Sent: {full_message}")
             return True
         else:
-            print(f"❌ Telegram Error: {response.status_code} - {response.text}")
+            print(f"⚠️ Telegram Error: {response.status_code} - {response.text}")
             return False
+
+    except requests.exceptions.ConnectionError:
+        print(f"🔕 Telegram blocked/unreachable. Alert logged locally only.")
+        return False
     except Exception as e:
-        print(f"❌ Failed to send Telegram message: {str(e)}")
+        print(f"⚠️ Failed to send Telegram message: {str(e)}")
         return False
 
 def reset_all_timers():

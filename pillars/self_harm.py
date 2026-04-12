@@ -86,9 +86,17 @@ def run_vision_system():
     face_mesh = mp_face_mesh.FaceMesh(max_num_faces=1, min_detection_confidence=0.6, min_tracking_confidence=0.6)
     print("  ✓ Face mesh model loaded")
 
-    camera_index = int(os.getenv("ICU_CAMERA_INDEX", "0"))
-    print(f"📷 Opening camera index {camera_index}...")
-    cap = cv2.VideoCapture(camera_index)
+    # User reported Index 0 is a virtual camera. Switching to Index 1 as likely integrated cam.
+    # If Index 1 fails, you might need to check 'utils/check_cameras.py' again.
+    target_camera_index = 1
+    camera_index = target_camera_index
+    print(f"📷 Attempting to open camera index {camera_index}...")
+    
+    # Use DirectShow on Windows for better compatibility
+    if os.name == 'nt':
+        cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+    else:
+        cap = cv2.VideoCapture(camera_index)
     
     # Check if camera opened successfully
     if not cap.isOpened():
